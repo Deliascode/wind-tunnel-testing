@@ -8,16 +8,13 @@ distribute them *around the expected wake center*, which shifts in the Y
 (lateral) direction depending on the yaw angle and the downstream distance.
 
 We use the classical Jimenez (2010) analytical wake-deflection model to predict
-the lateral position of the wake center, and then build a measurement plane
-around it: concentric circles centred on the wake center (for 2-D wake-shape
-validation) plus a denser hub-height line of Y positions (for calibrating the
-wake-center model). Cosine clustering keeps points dense where the deficit
-gradient is steepest.
+the lateral position of the wake center, and then build a hub-height line of Y
+positions that is denser near that center and sparser towards the edges (the
+paper shows the wake center is best resolved when points straddle it).
 
-Reference frame: X is the downwind direction, Z is vertical and Y is the lateral
-horizontal axis, with the origin at the hub center (matching the traverse frame
-once the streamwise home offset is applied). The circle radii are sized to the
-reachable traverse window so no point is clipped.
+Reference frame (assignment): X is the downwind direction, Z points downwards,
+origin at the hub center. Y is the remaining (lateral) horizontal axis. Wake
+measurements are limited to hub height, i.e. Z = 0.
 
 Each formula is its own function.
 """
@@ -113,69 +110,94 @@ def clip_to_limits(values: np.ndarray, lower: float, upper: float) -> np.ndarray
     return np.clip(values, lower, upper)
 
 
+def fitted_half_width(
+    wake_center_y: float,
+    desired_half_width: float,
+    lower_limit: float,
+    upper_limit: float,
+) -> float:
+    """
+    Largest symmetric half-width around `wake_center_y` that still fits the limits.
+
+    The survey line is symmetric about the wake center, so the usable half-width
+    is bounded by the nearer traverse wall:
+
+        available = min(center - lower_limit, upper_limit - center)
+
+    The returned value is min(desired_half_width, available), which guarantees the
+    extreme points land exactly on (not beyond) the traverse limits, so no point
+    has to be clipped and the cosine clustering is preserved. Raises if the center
+    itself lies outside the limits (that would be a configuration error).
+    """
+    if not (lower_limit <= wake_center_y <= upper_limit):
+        raise ValueError(
+            f"Wake center {wake_center_y:.3f} m lies outside the traverse "
+            f"limits [{lower_limit}, {upper_limit}] m."
+        )
+    available = min(wake_center_y - lower_limit, upper_limit - wake_center_y)
+    return min(desired_half_width, available)
+
+
+# ---------------------------------------------------------------------------
+# In-plane (y-z) concentric-circle distribution
+# ---------------------------------------------------------------------------
 def reachable_radius(
-    center_y: float,
-    center_z: float,
+    wake_center_y: float,
     y_min: float,
     y_max: float,
     z_min: float,
     z_max: float,
 ) -> float:
     """
-    Largest circle radius around (center_y, center_z) that fits the traverse window.
+    Largest in-plane circle radius (centred on the wake center) that fits the box.
 
-    The probe can move inside the rectangle [y_min, y_max] x [z_min, z_max]; the
-    biggest centred circle is bounded by the nearest wall:
+    A survey circle is centred at (Y = wake_center_y, Z = 0). Its nearest approach
+    to each traverse wall caps the radius:
 
-        r = min(center_y - y_min, y_max - center_y,
-                center_z - z_min, z_max - center_z)
+        horizontal = min(center - y_min, y_max - center)
+        vertical   = min(z_max, -z_min)        # Z = 0 is hub height
 
-    Raises if the centre lies outside the window (a configuration error).
+    The reachable radius is the smaller of the two. Raises if the center already
+    lies outside the Y limits (a configuration error).
     """
-    if not (y_min <= center_y <= y_max and z_min <= center_z <= z_max):
+    if not (y_min <= wake_center_y <= y_max):
         raise ValueError(
-            f"Wake centre ({center_y:.3f}, {center_z:.3f}) m lies outside the "
-            f"traverse window [{y_min}, {y_max}] x [{z_min}, {z_max}] m."
+            f"Wake center {wake_center_y:.3f} m lies outside the Y traverse "
+            f"limits [{y_min}, {y_max}] m."
         )
-    return min(
-        center_y - y_min,
-        y_max - center_y,
-        center_z - z_min,
-        z_max - center_z,
-    )
+    horizontal = min(wake_center_y - y_min, y_max - wake_center_y)
+    vertical = min(z_max, -z_min)
+    return min(horizontal, vertical)
 
 
 def concentric_ring_positions(
-    center_y: float,
-    center_z: float,
-    max_radius: float,
-    points_per_ring: tuple[int, ...],
-) -> list[tuple[float, float]]:
+    wake_center_y: float,
+    radius: float,
+    number_of_points: int,
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    (Y, Z) points on concentric circles centred on the wake centre.
+    (Y, Z) coordinates of `number_of_points` points equally spaced on a circle.
 
-    `points_per_ring` gives the number of points on each ring from the innermost
-    to the outermost; its length is the number of rings. Ring radii use
-    equal-AREA spacing
+    The circle is centred at (Y = wake_center_y, Z = 0). The angular grid is
+    offset by half a step,
 
-        r_i = max_radius * sqrt(i / n_rings),   i = 1 .. n_rings
+        theta_k = (2k + 1) * pi / n ,    k = 0 .. n - 1 ,
 
-    so the rings sample the disk roughly uniformly per unit area. Each ring's
-    points are spread evenly in angle with a half-step offset, which keeps every
-    point off the Z = 0 axis (so the rings never duplicate the hub-height line
-    points). Use an even number of points per ring to guarantee this.
+    so that for an EVEN number of points none of them falls on Z = 0 (the
+    hub-height Y axis). This keeps the dedicated Y-axis points distinct from the
+    circle points, as required. An odd count would place one point on the axis and
+    is therefore rejected (fail-fast).
+
+    Returns two arrays (Y, Z) in metres.
     """
-    n_rings = len(points_per_ring)
-    if n_rings < 1:
-        raise ValueError("Need at least one ring.")
-    positions: list[tuple[float, float]] = []
-    for ring_index, point_count in enumerate(points_per_ring, start=1):
-        if point_count < 1:
-            raise ValueError("Each ring needs at least one point.")
-        radius = max_radius * math.sqrt(ring_index / n_rings)
-        for k in range(point_count):
-            angle = (k + 0.5) * 2.0 * math.pi / point_count
-            y = center_y + radius * math.cos(angle)
-            z = center_z + radius * math.sin(angle)
-            positions.append((y, z))
-    return positions
+    if number_of_points < 2:
+        raise ValueError("Need at least two points to define a circle.")
+    if number_of_points % 2 != 0:
+        raise ValueError(
+            "Ring point count must be even so no circle point lands on the Z = 0 axis."
+        )
+    k = np.arange(number_of_points)
+    theta = (2.0 * k + 1.0) * math.pi / number_of_points
+    y_positions = wake_center_y + radius * np.cos(theta)
+    z_positions = radius * np.sin(theta)
+    return y_positions, z_positions

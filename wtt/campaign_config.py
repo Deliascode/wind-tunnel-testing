@@ -61,32 +61,22 @@ class Group2Constraints:
 @dataclass(frozen=True)
 class WakeSurveySettings:
     """
-    Settings for the Task-2 wake survey (a y-z measurement plane at one X).
+    Settings for the Task-2 wake survey.
 
-    The survey spans a vertical plane at a single downstream station. Per yaw the
-    points are a mix of (a) concentric circles centred on the deflected wake
-    centre - for 2-D validation of the wake shape - and (b) extra points along the
-    hub-height horizontal line (Z = 0) - for calibrating the wake-centre model.
-
-    Coordinate convention (Lecture 5 traversing system): the reported probe
-    positions are in the *traverse* frame whose origin (home, X=Y=Z=0) sits at hub
-    height, `traverse_home_offset` behind the rotor, with X growing downwind. The
-    nominal rotor diameter (1D = 1.1 m) is the traverse/grid convention used to
-    place the station and the home offset; the aerodynamic diameter (from the
-    look-up table) drives the wake-deflection physics.
+    The survey now samples a full y-z plane at a single downstream station: a
+    horizontal hub-height line (Z = 0) plus one or more concentric circles in the
+    plane so the wake can be graphed and the center best-fitted.
     """
 
-    requested_tunnel_speed: float  # [m/s]  speed SET on the tunnel for the wake task (5.4)
-    nominal_rotor_diameter: float  # [m]    traverse/grid convention: 1D = 1.1 m
-    downstream_distance: float  # [m]       streamwise station X behind the rotor
-    traverse_home_offset: float  # [m]      home position distance behind the rotor (0.5D)
+    requested_tunnel_speed: float  # [m/s] speed COMMANDED on the tunnel (5.4); the
+    #                                rotor feels U' = this * Glauert factor (blockage).
+    downstream_distance: float  # [m]    streamwise station X = 2D behind the rotor
     wake_expansion_coefficient: float  # [-] Jimenez k_d
-    # y-z grid per yaw = hubline_points (on Z = 0) + sum(circle_rings_points).
-    hubline_points: int  # [-]             hub-line points (odd -> includes the centre)
-    circle_rings_points: tuple[int, ...]  # [-] points per concentric ring (inner->outer)
-    measuring_area_fraction: float  # [-]  fraction of the reachable extent actually used
-    hubline_span_factor: float  # [-]      hub-line half-width as a multiple of the wake radius
-    # Traverse limits of the wake probe (from Lecture 5), in metres.
+    hubline_points: int  # [-]          points on the Y axis (Z = 0), per yaw
+    ring_point_counts: tuple[int, ...]  # [-] points on each concentric circle (even)
+    ring_radius_fractions: tuple[float, ...]  # [-] circle radius / reachable radius
+    span_factor: float  # [-]           Y-line half-width = span_factor * wake radius
+    # Traverse limits of the wake probe (from the lecture), in metres.
     x_min: float
     x_max: float
     y_min: float
@@ -131,19 +121,14 @@ class CampaignConfig:
     yaw: YawSchedule
     yaw_model: YawModelSettings
     lookup_table_path: str
-    rotor_diameter: float  # [m]  G1 rotor diameter (derived from the lookup geometry)
-    # Task 1 is driven by the REQUESTED (tunnel) wind speed, which the operator can
-    # only set in finite steps. For every yaw we step the tunnel speed by
-    # `performance_speed_step` (0.5 m/s) across the achievable constant-Reynolds
-    # range and, for each speed, re-solve the TSR that keeps Re = 75000. The TSR
-    # root is bracketed by the verified-feasible band below: it is narrower than
-    # the raw [tsr_min, tsr_max] limit band because at constant Re = 75000 the
-    # calibrated speed (and so power ~ U^3 and torque) grows towards low TSR and
-    # the lowest TSRs would exceed the 75 W / 1 Nm limits. Keeping the bracket in
-    # [6.0, 9.0] guarantees every generated row respects ALL Group-2 limits.
-    performance_tsr_feasible_min: float  # [-]
-    performance_tsr_feasible_max: float  # [-]
-    performance_speed_step: float  # [m/s]
+    rotor_diameter: float  # [m]  aerodynamic G1 rotor diameter (from the lookup geometry)
+    # Nominal traverse-grid diameter: the wake-traverse coordinate system uses the
+    # round figure 1D = 1100 mm (Lecture 5), independent of the slightly different
+    # aerodynamic diameter that drives the wake physics. Probe positions are placed
+    # on this nominal grid; the Jimenez wake model still uses `rotor_diameter`.
+    nominal_rotor_diameter: float  # [m]  1D for the traverse grid (1.1)
+    traverse_home_offset: float  # [m]    home X is this far behind the rotor (0.5 D_nom)
+    performance_speed_step: float  # [m/s] requested-speed grid step for Task 1 (0.5)
 
 
 def build_group2_campaign(
@@ -157,6 +142,12 @@ def build_group2_campaign(
     rotor diameter is passed in (it is read from the lookup-table geometry, so we
     do not hard-code it here) which keeps geometry and configuration consistent.
     """
+    # Nominal traverse-grid diameter and home offset (Lecture 5): the probe-
+    # traversing coordinate system uses 1D = 1100 mm and a home position 0.5D
+    # behind the rotor. These are deliberately the round grid figures, not the
+    # aerodynamic diameter.
+    nominal_diameter = 1.1  # [m]  1D = 1100 mm
+    home_offset = 0.5 * nominal_diameter  # [m]  home is 0.5D behind the rotor
     return CampaignConfig(
         tunnel=WindTunnelGeometry(
             length=4.5,  # [m]
@@ -177,17 +168,13 @@ def build_group2_campaign(
             reynolds_tolerance=2000.0,
         ),
         wake=WakeSurveySettings(
-            requested_tunnel_speed=5.4,  # [m/s] speed set on the tunnel (Group-2 brief)
-            nominal_rotor_diameter=1.1,  # [m]   traverse/grid convention: 1D = 1100 mm
-            downstream_distance=2.0 * 1.1,  # [m] station X = 2D behind the rotor
-            traverse_home_offset=0.5 * 1.1,  # [m] home is 0.5D behind the rotor
+            requested_tunnel_speed=5.4,  # [m/s] commanded tunnel speed for Group 2
+            downstream_distance=2.0 * nominal_diameter,  # X = 2D behind the rotor
             wake_expansion_coefficient=0.07,
-            # y-z grid per yaw: 9 hub-line points + rings of 6 and 8 = 23 points,
-            # i.e. 3 x 23 = 69 points total.
-            hubline_points=9,
-            circle_rings_points=(6, 8),
-            measuring_area_fraction=0.85,  # keep ~15% margin to the traverse limits
-            hubline_span_factor=1.2,  # hub line reaches ~1.2 wake radii either side
+            hubline_points=9,  # 9 points kept on the Y axis (Z = 0)
+            ring_point_counts=(6, 8),  # small + big concentric circle (even counts)
+            ring_radius_fractions=(0.45, 0.85),  # of the reachable in-plane radius
+            span_factor=1.5,  # Y-line half-width = 1.5 * wake radius (fit to limits)
             # Traverse limits from Lecture 5 (converted mm -> m).
             x_min=0.0,
             x_max=3.850,
@@ -211,11 +198,7 @@ def build_group2_campaign(
         ),
         lookup_table_path=lookup_table_path,
         rotor_diameter=rotor_diameter,
-        # Verified-feasible TSR bracket for the Task-1 speed sweep: power, torque,
-        # rotor speed and Re = 75000 are all satisfied across [6.0, 9.0], which
-        # brackets the optimum TSR (7.05). The 0.5 m/s step matches the tunnel's
-        # speed-setting resolution.
-        performance_tsr_feasible_min=6.0,
-        performance_tsr_feasible_max=9.0,
-        performance_speed_step=0.5,
+        nominal_rotor_diameter=nominal_diameter,
+        traverse_home_offset=home_offset,
+        performance_speed_step=0.5,  # [m/s] requested-speed grid step (Task 1)
     )

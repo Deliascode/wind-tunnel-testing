@@ -47,9 +47,7 @@ class TestMatrixRow:
     One row of a test matrix.
 
     The wake-probe position fields (probe_x/y/z) are only meaningful for Task 2;
-    for Task 1 they are left as None and simply not written into the sheet. They
-    are reported in the Lecture-5 traverse frame (home X=Y=Z=0 at hub height,
-    0.5D behind the rotor; X downwind), in millimetres.
+    for Task 1 they are left as None and simply not written into the sheet.
     """
 
     test_number: int
@@ -65,8 +63,8 @@ class TestMatrixRow:
     expected_power_w: float  # [W]
     expected_torque_nm: float  # [Nm]
     expected_thrust_n: float  # [N]
-    probe_x: float | None = None  # [mm]  traverse frame (X downwind from home)
-    probe_y: float | None = None  # [mm]  traverse frame (Y lateral from hub)
-    probe_z: float | None = None  # [mm]  traverse frame (Z vertical from hub)
+    probe_x: float | None = None  # [mm]
+    probe_y: float | None = None  # [mm]
+    probe_z: float | None = None  # [mm]
     # Blank measurement slots, keyed by channel name (filled with empty strings).
     measurements: dict[str, str] = field(default_factory=dict)

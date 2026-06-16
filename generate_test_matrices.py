@@ -37,13 +37,25 @@ from wtt.yaw_model import YawPerformanceModel
 LOOKUP_TABLE_PATH = "LookUpTable_G1.mat"
 TASK1_OUTPUT = "Task1_Performance_TestMatrix_Group2.xlsx"
 TASK2_OUTPUT = "Task2_Wake_TestMatrix_Group2.xlsx"
-TASK2_TRAVERSE_OUTPUT = "Task2_Wake_TraversePositions_Group2.txt"
+# Per-yaw wake traverse-position files (Lecture 5 p.21 format). One file per yaw
+# because the survey positions shift with the wake center; A (probe angle) = 0.
+TRAVERSE_OUTPUT_TEMPLATE = "Task2_Wake_TraversePositions_Group2_{label}.txt"
 
 # Speed search interval for the Reynolds calibration root find [m/s].
 # Wide enough to bracket the solution for every TSR in the sweep; if the target
 # Reynolds cannot be reached inside this interval the solver raises on purpose.
 SPEED_SEARCH_MIN = 0.5  # [m/s]
 SPEED_SEARCH_MAX = 30.0  # [m/s]
+
+
+def _yaw_label(yaw_deg: float) -> str:
+    """Filename-safe label for a yaw angle (e.g. +30 -> 'yawPlus30')."""
+    rounded = round(yaw_deg)
+    if rounded > 0:
+        return f"yawPlus{rounded}"
+    if rounded < 0:
+        return f"yawMinus{abs(rounded)}"
+    return "yaw0"
 
 
 def build_solver(config, lookup_table: G1LookUpTable) -> OperatingPointSolver:
@@ -110,11 +122,14 @@ def print_summary(config, lookup_table: G1LookUpTable, solver: OperatingPointSol
     )
     print(f"  Target Reynolds          : {config.targets.target_reynolds:.0f}")
     print(f"  Target TSR               : {config.targets.target_tsr:.3f}")
-    traverse_x = config.wake.downstream_distance - config.wake.traverse_home_offset
+    traverse_x_mm = (
+        config.wake.downstream_distance - config.traverse_home_offset
+    ) * 1000.0
     print(
-        f"  Wake station X (2D)      : {config.wake.downstream_distance:.4f} m "
-        f"behind rotor (traverse X = {traverse_x * 1000:.0f} mm)"
+        f"  Wake station X = 2D      : {config.wake.downstream_distance:.4f} m "
+        f"(traverse X = {traverse_x_mm:.0f} mm)"
     )
+    print(f"  Wake requested speed     : {config.wake.requested_tunnel_speed:.2f} m/s")
 
 
 def main() -> None:
@@ -140,7 +155,7 @@ def main() -> None:
         tsr=optimum.tsr,
         pitch_deg=config.targets.optimum_pitch_deg,
         yaw_deg=0.0,
-        requested_tunnel_speed=config.wake.requested_tunnel_speed,
+        tunnel_speed=config.wake.requested_tunnel_speed,
     ).rotor_speed_rpm
     scaling_report = ScalingReport(
         full_scale=samsung_s7_reference(),
@@ -154,14 +169,14 @@ def main() -> None:
     for factor in scaling_rows:
         print(f"  {factor.quantity:18} {factor.combination:14} = {factor.value:.4g}")
 
-    # 4. Task 1 (performance, 30 rows).
+    # 4. Task 1 (performance, requested-speed grid at constant Re).
     task1_builder = Task1PerformanceBuilder(config, solver)
     task1_results = task1_builder.build_results()
     task1_rows = task1_builder.build_rows()
 
-    # 5. Task 2 (wake, 70 rows).
+    # 5. Task 2 (wake, y-z plane, 69 rows).
     task2_builder = Task2WakeBuilder(config, solver)
-    task2_results = [result for result, _y in task2_builder.build_results()]
+    task2_results = [result for result, _positions in task2_builder.build_results()]
     task2_rows = task2_builder.build_rows()
 
     # 6. Write Excel files.
@@ -177,10 +192,15 @@ def main() -> None:
         file_path=TASK2_OUTPUT,
         scaling_rows=scaling_rows,
     )
-    TraversePositionWriter().write(rows=task2_rows, file_path=TASK2_TRAVERSE_OUTPUT)
     print(f"\nWrote {len(task1_rows)} rows -> {TASK1_OUTPUT}")
     print(f"Wrote {len(task2_rows)} rows -> {TASK2_OUTPUT}")
-    print(f"Wrote {len(task2_rows)} positions -> {TASK2_TRAVERSE_OUTPUT}")
+
+    # 6b. Wake traverse-position files: one per yaw, A (probe angle) = 0 throughout.
+    traverse_writer = TraversePositionWriter()
+    for yaw_deg, positions in task2_builder.traverse_blocks():
+        path = TRAVERSE_OUTPUT_TEMPLATE.format(label=_yaw_label(yaw_deg))
+        traverse_writer.write(file_path=path, positions=positions)
+        print(f"Wrote {len(positions)} traverse points -> {path}")
 
     # 7. Verify constraints (Reynolds enforced only for the performance task).
     report_constraints("Task 1 (performance)", task1_results, config, enforce_reynolds=True)

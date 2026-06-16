@@ -67,9 +67,9 @@ class TestMatrixExcelWriter:
         if self._include_wake_position:
             columns.extend(
                 [
-                    ("Traverse X [mm]", "probe_x", _FMT_POS),
-                    ("Traverse Y [mm]", "probe_y", _FMT_POS),
-                    ("Traverse Z [mm]", "probe_z", _FMT_POS),
+                    ("Wake Probe X [mm]", "probe_x", _FMT_POS),
+                    ("Wake Probe Y [mm]", "probe_y", _FMT_POS),
+                    ("Wake Probe Z [mm]", "probe_z", _FMT_POS),
                 ]
             )
         columns.extend(

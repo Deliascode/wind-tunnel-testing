@@ -1,47 +1,37 @@
 """
-Traverse-position file writer for Task 2 (Lecture 5 input format).
+Writer for the wake-traverse position files (Task 2).
 
-The wake-probe traversing system is fed a TAB-separated text file listing the
-X / Y / Z positions to visit (millimetres, traverse frame) plus the turntable
-yaw angle A (degrees). See Lecture 5, "Required Data for Wake Measurement
-(Input)": the home position X=Y=Z=0 is at hub height, 0.5D behind the rotor, and
-the table must be TAB-separated.
+The probe-traversing system is fed a tab-separated .txt file of X/Y/Z/A positions
+(Lecture 5, slide 21 format). One file is written per turbine-yaw case, because
+the wake center -- and therefore the survey positions -- shifts with yaw, while
+the probe angle A is always 0 (the probe is never angled).
 
-One line per measurement point, written in the same order as the Task-2 matrix so
-the traverse visits the points in that sequence. No fallbacks: a row without a
-probe position raises immediately.
+Coordinate frame: traverse coordinates in millimetres; home X/Y/Z = 0 sits at hub
+height, 0.5 D behind the rotor (see `Task2WakeBuilder`).
 """
 
 from __future__ import annotations
 
-from .test_matrix_row import TestMatrixRow
-
-
-# Header for the TAB-separated file (Lecture 5 convention: x y z, plus the
-# turntable yaw A which differs per yaw block).
-_HEADER = "x\ty\tz\tA"
-
 
 class TraversePositionWriter:
-    """Writes the Task-2 probe positions as a TAB-separated .txt file."""
+    """Writes tab-separated X/Y/Z/A traverse-position files."""
 
-    def write(self, rows: list[TestMatrixRow], file_path: str) -> None:
-        """
-        Write `rows` (which must carry probe_x/y/z) to a TAB-separated file.
+    # Tab-separated header expected by the traversing system (Lecture 5, p.21).
+    _HEADER: tuple[str, ...] = ("x", "y", "z", "A")
 
-        Columns: x, y, z [mm] and A [deg], where A is the turntable yaw of the
-        point. Positions are written with 0.1 mm resolution; A as an integer.
+    def write(
+        self,
+        file_path: str,
+        positions: list[tuple[float, float, float, float]],
+    ) -> None:
         """
-        lines = [_HEADER]
-        for row in rows:
-            if row.probe_x is None or row.probe_y is None or row.probe_z is None:
-                raise ValueError(
-                    f"Row {row.test_number} has no probe position; cannot write "
-                    "the traverse file."
-                )
-            lines.append(
-                f"{row.probe_x:.1f}\t{row.probe_y:.1f}\t"
-                f"{row.probe_z:.1f}\t{row.yaw_deg:.0f}"
-            )
+        Write one traverse file: a header line plus one TAB-separated row per point.
+
+        `positions` is a list of (X, Y, Z, A) tuples in millimetres / degrees. X/Y/Z
+        are written with one decimal; A (always 0) as an integer.
+        """
+        lines = ["\t".join(self._HEADER)]
+        for x_mm, y_mm, z_mm, a_deg in positions:
+            lines.append(f"{x_mm:.1f}\t{y_mm:.1f}\t{z_mm:.1f}\t{a_deg:.0f}")
         with open(file_path, "w", encoding="utf-8") as handle:
             handle.write("\n".join(lines) + "\n")
