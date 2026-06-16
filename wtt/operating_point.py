@@ -175,6 +175,7 @@ class OperatingPointSolver:
             free_air_speed=free_air_speed,
             cp=cp,
             ct_thrust=ct_thrust,
+            ct_base=ct_base,
             axial=axial,
             tangential=tangential,
         )
@@ -189,8 +190,11 @@ class OperatingPointSolver:
         Equivalent free-air speed the rotor feels for a commanded tunnel speed.
 
         Inverse of the blockage command: U'_inf = U_tunnel * Glauert factor. The
-        thrust coefficient must be the (yaw-corrected) rotor thrust coefficient,
-        because blockage scales with the actual rotor loading.
+        thrust coefficient passed in must be the YAW-FREE axial C_T(0) (the look-up
+        table value, not the cosine-reduced C_T(gamma)): the Glauert/Bahaj relation
+        is an axial-flow tunnel-wall correction, so the blockage factor is a rig
+        property held constant across yaw (Castellani et al., Machines 2019,
+        7(1):15; see README s.7.10).
         """
         return tunnel_speed * glauert_speed_ratio(thrust_coefficient, self._blockage)
 
@@ -211,7 +215,9 @@ class OperatingPointSolver:
         """
         cp_base, ct_base, axial, tangential = self._coefficients(tsr, pitch_deg)
         cp, ct_thrust = self._apply_yaw(cp_base, ct_base, yaw_deg, tsr)
-        free_air_speed = self._free_air_speed_from_tunnel(tunnel_speed, ct_thrust)
+        # Blockage uses the yaw-free C_T(0) (ct_base), not the cosine-reduced
+        # C_T(gamma): the Glauert correction is a yaw-independent rig property.
+        free_air_speed = self._free_air_speed_from_tunnel(tunnel_speed, ct_base)
         return self._assemble_result(
             tsr=tsr,
             pitch_deg=pitch_deg,
@@ -219,6 +225,7 @@ class OperatingPointSolver:
             free_air_speed=free_air_speed,
             cp=cp,
             ct_thrust=ct_thrust,
+            ct_base=ct_base,
             axial=axial,
             tangential=tangential,
         )
@@ -249,9 +256,10 @@ class OperatingPointSolver:
         """
 
         def residual(tsr: float) -> float:
-            cp_base, ct_base, axial, tangential = self._coefficients(tsr, pitch_deg)
-            _cp, ct_thrust = self._apply_yaw(cp_base, ct_base, yaw_deg, tsr)
-            free_air_speed = self._free_air_speed_from_tunnel(tunnel_speed, ct_thrust)
+            # Blockage uses the yaw-free C_T(0) (ct_base); the Reynolds residual is
+            # itself yaw-independent, so no yaw correction is applied here.
+            _cp_base, ct_base, axial, tangential = self._coefficients(tsr, pitch_deg)
+            free_air_speed = self._free_air_speed_from_tunnel(tunnel_speed, ct_base)
             reynolds = self._calibrator.reynolds_at_speed(
                 free_stream_speed=free_air_speed,
                 tsr=tsr,
@@ -280,10 +288,18 @@ class OperatingPointSolver:
         free_air_speed: float,
         cp: float,
         ct_thrust: float,
+        ct_base: float,
         axial: float,
         tangential: float,
     ) -> OperatingPointResult:
-        """Finish the chain: Reynolds, blockage, rpm and dimensional loads."""
+        """Finish the chain: Reynolds, blockage, rpm and dimensional loads.
+
+        `ct_thrust` is the yaw-corrected thrust coefficient C_T(gamma); it sets the
+        dimensional thrust load and is reported in the row. `ct_base` is the
+        yaw-free axial C_T(0) and is used for the blockage correction only, so the
+        Glauert factor stays identical across yaw (Castellani et al., Machines 2019,
+        7(1):15; README s.7.10).
+        """
         # Reynolds actually achieved at this free-air speed.
         reynolds = self._calibrator.reynolds_at_speed(
             free_stream_speed=free_air_speed,
@@ -292,10 +308,11 @@ class OperatingPointSolver:
             tangential_induction=tangential,
         )
 
-        # Blockage correction: tunnel command speed is lower than the free-air speed.
+        # Blockage correction (yaw-free C_T(0)): tunnel command speed is lower than
+        # the free-air speed. Using ct_base keeps the blockage factor yaw-independent.
         tunnel_speed = commanded_tunnel_speed(
             equivalent_free_air_speed=free_air_speed,
-            thrust_coefficient=ct_thrust,
+            thrust_coefficient=ct_base,
             blockage_ratio_value=self._blockage,
         )
 

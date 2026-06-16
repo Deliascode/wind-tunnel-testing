@@ -54,7 +54,7 @@ blank columns for the channels the G1 model records.
 
 | File | Task | Rows | Contents |
 |------|------|------|----------|
-| `Task1_Performance_TestMatrix_Group2.xlsx` | Performance | ≤30 (12 now) | $C_P(\lambda)$ / $C_T(\lambda)$ curves at three yaw angles, on a 0.5 m/s requested-speed grid |
+| `Task1_Performance_TestMatrix_Group2.xlsx` | Performance | ≤30 (15 now) | $C_P(\lambda)$ / $C_T(\lambda)$ curves at three yaw angles, on a 0.5 m/s requested-speed grid |
 | `Task2_Wake_TestMatrix_Group2.xlsx` | Wake | 69 | Wake survey over a **y–z plane** at one downstream station ($X=2D$), three yaw angles |
 | `Task2_Wake_TraversePositions_Group2_yaw{0,Plus30,Minus30}.txt` | Wake | 23 each | Tab-separated **traverse positions** ($x\;y\;z\;A$), one file per yaw |
 
@@ -70,7 +70,7 @@ Group 2 measures at yaw angles $\gamma = 0^\circ,\,+30^\circ,\,-30^\circ$:
   the lowest feasible speed up; at each speed the rotor speed (TSR) is tuned to hit
   $Re = 75\,000$, and every speed is run at all three yaw angles. Speeds whose binding
   ($\gamma=0$) point breaches the power/torque/rpm limits are dropped, so the curves may use
-  fewer than the 30-point maximum (12 points with the shipped limits).
+  fewer than the 30-point maximum (15 points with the shipped limits).
 * **Wake:** wake shape at **one** downstream station $X = 2D$, prescribed **requested wind
   speed** $U_\mathrm{tunnel} = 5.4\ \mathrm{m/s}$, optimum pitch and **optimum** TSR, sampled
   over a **y–z plane** (a hub-height line plus concentric circles) — 69 points total.
@@ -123,7 +123,7 @@ report, then writes the two `.xlsx` files.
   Wake station X = 2D      : 2.2000 m (traverse X = 1650 mm)
   Wake requested speed     : 5.40 m/s
 ...
-Wrote 12 rows -> Task1_Performance_TestMatrix_Group2.xlsx
+Wrote 15 rows -> Task1_Performance_TestMatrix_Group2.xlsx
 Wrote 69 rows -> Task2_Wake_TestMatrix_Group2.xlsx
 Wrote 23 traverse points -> Task2_Wake_TraversePositions_Group2_yaw0.txt
 Wrote 23 traverse points -> Task2_Wake_TraversePositions_Group2_yawPlus30.txt
@@ -492,26 +492,29 @@ $\Omega = \lambda U'_\infty/R$ is determined and **no free variable remains** to
 `solve_for_fixed_tunnel_speed` just reports whatever $Re$ results.
 
 **Why Task 2 leaves the $75\,000 \pm 2000$ corridor.** The rotor never feels the 5.4 m/s
-set on the tunnel — it feels the blockage-corrected free-air speed (§7.10), and the Glauert
-factor depends on the **yaw-dependent** thrust coefficient $C_T(\gamma)\!\sim\!\cos^2\gamma$:
+set on the tunnel — it feels the blockage-corrected free-air speed (§7.10). The Glauert factor
+is evaluated with the **yaw-free** axial thrust coefficient $C_T(0)$ (§7.10), so it is
+**identical for all three yaw cases**:
 
 $$
-U'_\infty = U_{\text{tunnel}}\Big(1 + \tfrac{\alpha}{4}\tfrac{C_T(\gamma)}{1 - C_T(\gamma)}\Big),
-\qquad Re \propto U'_\infty .
+U'_\infty = U_{\text{tunnel}}\Big(1 + \tfrac{\alpha}{4}\tfrac{C_T(0)}{1 - C_T(0)}\Big)
+= 5.4 \times 1.155 = 6.234\ \mathrm{m/s}, \qquad Re \propto U'_\infty .
 $$
 
-| $\gamma$ | $C_T$ | $U'_\infty$ [m/s] | $Re$ | in $75\,000\pm2000$? |
+| $\gamma$ | $C_T$ in blockage | $U'_\infty$ [m/s] | $Re$ | in $75\,000\pm2000$? |
 |-----:|------:|------:|------:|:--:|
-| $0^\circ$ | high | 6.234 | 77 695 | ✗ (just above) |
-| $+30^\circ$ | $\downarrow\,\cos^2\!30^\circ$ | 5.752 | 71 684 | ✗ (just below) |
-| $-30^\circ$ | $\downarrow$ | 5.740 | 71 541 | ✗ (just below) |
+| $0^\circ$ | $C_T(0)$ | 6.234 | 77 695 | ✗ (just above) |
+| $+30^\circ$ | $C_T(0)$ (same) | 6.234 | 77 695 | ✗ (same) |
+| $-30^\circ$ | $C_T(0)$ (same) | 6.234 | 77 695 | ✗ (same) |
 
-The ratios confirm the proportionality: $71\,684/77\,695 = 0.923 = 5.752/6.234$. To pull all
-three into the corridor one would have to **surrender one of the two fixed requirements** —
-either lower the tunnel speed (so $U'_\infty$ calibrates to $75\,000$, breaking the prescribed
-$5.4\ \mathrm{m/s}$) or detune the TSR off its optimum (so it is no longer the optimum-point
-wake). Both are mandated, so Task 2 **reports** $Re$ rather than enforcing it — which is exactly
-why `check_row` is called with `enforce_reynolds=True` for Task 1 and `False` for Task 2.
+The three $Re$ are now **equal** (the blockage carries no yaw dependence). The single offset
+above the corridor comes only from the fixed $5.4\ \mathrm{m/s}$ being blockage-amplified to
+$6.234\ \mathrm{m/s}$. To pull $Re$ into the band one would have to **surrender one of the two
+fixed requirements** — either lower the tunnel speed (so $U'_\infty$ calibrates to $75\,000$,
+breaking the prescribed $5.4\ \mathrm{m/s}$) or detune the TSR off its optimum (so it is no
+longer the optimum-point wake). Both are mandated, so Task 2 **reports** $Re$ rather than
+enforcing it — which is exactly why `check_row` is called with `enforce_reynolds=True` for
+Task 1 and `False` for Task 2.
 
 ### 7.6 Velocity Triangle and Blade-Element Momentum Theory
 
@@ -709,6 +712,20 @@ on a 0.5 m/s grid and tunes the TSR so the resulting $Re(U'_\infty) = 75\,000$. 
 is the **“Requested wind speed”** column; the derived $U'_\infty$ is reported alongside as
 **“Equivalent free-air U′”**.
 
+**Yaw handling (which $C_T$ enters the correction).** The Glauert/Bahaj relation is derived
+for **axial** flow and contains no yaw term. Following Castellani *et al.* (2019), who apply a
+**single, yaw-independent** blockage factor across $0^\circ, \pm22.5^\circ, \pm45^\circ$ (their
+Eqs. 1–3 use a velocity ratio $BF$ that is a property of the rig, not of the operating point),
+this tool feeds the **yaw-free axial thrust coefficient $C_T(0)$** (the look-up-table value)
+into the wall correction for **every** yaw case. The yaw-reduced
+$C_T(\gamma) = C_T(0)\cos^{p_T}\!\gamma$ is *not* used for blockage; it is used only for the
+dimensional thrust load and the reported coefficient. Consequently the blockage factor — and
+therefore $U'_\infty$ and the commanded tunnel speed — are **identical across the three yaw
+cases**, while the performance coefficients still vary with yaw. (Castellani *et al.* attribute
+the only residual yaw–blockage coupling to **geometric** wall proximity — an asymmetric
+few-percent effect — not a symmetric $\cos^2\gamma$ reduction, which further argues against
+putting $C_T(\gamma)$ into the correction.)
+
 **Alternative (not used).** The slides also give the Mikkelsen & Sørensen correction
 $\frac{U'_\infty}{U_\infty} = \epsilon - \frac{C_T}{4\epsilon}$; Glauert was selected per the
 assignment.
@@ -802,25 +819,28 @@ root-solved so the midspan Reynolds number is exactly $75\,000$. Every grid spee
 all three yaw angles.
 
 **Feasible band & filtering.** $Re = 75\,000$ is only reachable for a TSR in $[5.5, 9]$ over a
-limited speed range; the grid is restricted to the band common to all three yaws
-($\approx 4.4$–$7.06\ \mathrm{m/s}$). Each candidate is then checked against the power / torque
+limited speed range; the grid is restricted to the band where the target is reachable
+($\approx 3.8$–$7.06\ \mathrm{m/s}$, now **identical for all three yaws** because the blockage
+factor is yaw-free, §7.10). Each candidate is then checked against the power / torque
 / rpm limits. The binding case is $\gamma = 0$ (yaw reduces the loads, §7.9), and a speed is
 kept only if **all three** of its yaw points pass, so the three curves always share the same
-wind speeds. With the shipped limits this keeps **4 speeds × 3 yaws = 12 points** (the
+wind speeds. With the shipped limits this keeps **5 speeds × 3 yaws = 15 points** (the
 $6.5$–$7.0\ \mathrm{m/s}$ steps are dropped because $P>75\ \mathrm{W}$ at $\gamma=0$):
 
 | $U_{\text{tunnel}}$ [m/s] | $\gamma$ | $\lambda$ | $U'_\infty$ [m/s] | rpm | $Re$ | $P$ [W] | $Q$ [Nm] |
 |-----:|----:|----:|----:|----:|----:|----:|----:|
+| 4.00 | 0 | 8.52 | 5.02 | 751 | 75 000 | 25.4 | 0.32 |
 | 4.50 | 0 | 7.88 | 5.41 | 749 | 75 000 | 34.5 | 0.44 |
 | 5.00 | 0 | 7.29 | 5.83 | 746 | 75 000 | 44.8 | 0.57 |
 | 5.50 | 0 | 6.76 | 6.26 | 744 | 75 000 | 54.9 | 0.71 |
 | 6.00 | 0 | 6.31 | 6.68 | 740 | 75 000 | 65.0 | 0.84 |
 | *(dropped)* 6.50 | 0 | ≈5.9 | ≈7.1 | ≈738 | 75 000 | **>75** | — |
 
-The $\pm30^\circ$ rows at each kept speed sit at a slightly higher TSR (to hold $Re$ as yaw
-lowers the loading) and well inside the limits. The rows are written **ordered by ascending
-requested speed**, then by yaw, because the wind speed is the parameter changed least often
-during testing. Fewer than 30 points is acceptable (30 is the maximum).
+Because the blockage correction is now yaw-free (§7.10), at each kept speed the **three yaw
+rows share the same TSR, rpm, $U'_\infty$ and $Re$** — only the loads ($P$, $Q$, thrust) differ,
+through the yaw model. The rows are written **ordered by ascending requested speed**, then by
+yaw, because the wind speed is the parameter changed least often during testing. Fewer than 30
+points is acceptable (30 is the maximum).
 
 **Yaw dependence.** The three curves are distinct — and $+30^\circ \neq -30^\circ$ — through
 the cosine-loss and advance-ratio terms of §7.9 (e.g. at $\lambda = 7.05$,
@@ -848,10 +868,11 @@ and **optimum** TSR ($\lambda = 7.05$).
 | $-30^\circ$ | $-183$ mm | $-1000 \ldots +634$ mm | $\pm471$ mm |
 
 **Reynolds (reported, not forced).** Because $5.4\ \mathrm{m/s}$ is now the *tunnel* speed, the
-rotor feels $U'_\infty = 5.4 \times \text{Glauert} \approx 6.23\ \mathrm{m/s}$ at $\gamma = 0$,
-so the wake Reynolds number is $\approx 77\,700$ ($\gamma=0$) and $\approx 71\,600$
-($\gamma=\pm30^\circ$). The wake task fixes the speed, not $Re$, so these are reported only. The
-yaw-corrected $C_P$, $C_T$ and loads (§7.9) differ between the three yaw cases.
+rotor feels $U'_\infty = 5.4 \times \text{Glauert}(C_T(0)) \approx 6.23\ \mathrm{m/s}$. The
+blockage factor uses the yaw-free $C_T(0)$ (§7.10), so $U'_\infty$ and the wake Reynolds number
+$\approx 77\,700$ are **the same for all three yaw cases**. The wake task fixes the speed, not
+$Re$, so this is reported only. The yaw-corrected $C_P$, $C_T$ and loads (§7.9) still differ
+between the three yaw cases.
 
 ### 8.3 Reference Frame (traverse system)
 
@@ -978,10 +999,17 @@ as physically expected for a fixed rotation direction.
 8. **Reference conditions fixed.** Density and viscosity are evaluated at 20 °C / 1 atm; for
    high-accuracy post-processing, recompute $\rho$ from the measured ambient
    temperature/pressure/humidity (Lecture 5).
-9. **Wake Reynolds above target at $\gamma=0$.** With $5.4\ \mathrm{m/s}$ as the *tunnel* speed,
+9. **Wake Reynolds above target (all yaws).** With $5.4\ \mathrm{m/s}$ as the *tunnel* speed,
    the blockage-corrected free-air speed pushes the wake Reynolds number to $\approx 77\,700$
-   at $\gamma=0$ (just above the $75\,000\pm2000$ performance band). The wake task fixes the
-   speed, not $Re$, so this is reported only; it reflects the high ($19\%$) blockage here.
+   (just above the $75\,000\pm2000$ performance band) — **uniformly for all three yaw cases**,
+   since the blockage factor uses the yaw-free $C_T(0)$. The wake task fixes the speed, not
+   $Re$, so this is reported only; it reflects the high ($19\%$) blockage here.
+10. **Yaw-independent blockage.** The Glauert correction is fed the **yaw-free** axial
+    $C_T(0)$, so the blockage factor (and hence $U'_\infty$ and the commanded tunnel speed)
+    is identical across $0^\circ/\pm30^\circ$. This follows the precedent of Castellani *et al.*
+    (2019), who apply one yaw-independent blockage factor across a $0^\circ$–$\pm45^\circ$ sweep;
+    the Glauert/Bahaj relation itself is an axial-flow approximation with no yaw term. The
+    yaw-reduced $C_T(\gamma)$ is retained only for the thrust load and the reported coefficient.
 
 ---
 
@@ -1043,6 +1071,10 @@ as physically expected for a fixed rotation direction.
    deflection of a wind turbine in yaw.* Wind Energy **13**, 559–572 (2010). *(Wake
    deflection model.)*
 10. H. Glauert. *Airplane Propellers* / wind-tunnel wake-blockage theory.
+11. F. Castellani, D. Astolfi, F. Natili, F. Mari. *The Yawing Behavior of Horizontal-Axis Wind
+    Turbines: A Numerical and Experimental Analysis.* Machines **7**(1), 15 (2019).
+    doi:10.3390/machines7010015. *(Applies a single, yaw-independent blockage factor across a
+    $0^\circ$–$\pm45^\circ$ yaw sweep — basis for the yaw-free $C_T(0)$ blockage choice, §7.10.)*
 
 ---
 
