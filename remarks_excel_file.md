@@ -12,3 +12,14 @@ For task 2 we need to generate a tab seperated .txt file containaing the X / Y /
 
 
 
+
+Points from simone after calibration lab
+1. Use the same blockage correction for all yaw situations! Use the blockage from the 0° yaw situation
+
+2. For positioning the y/z plane in the wake measurements. If you want to place another turbine in the 4D plane maybe consier measuring there as well. 
+
+3. We will have 4 data files
+
+4. speed traverse: y/z (4cm per second) , x (1/4 of this) is super slow. 
+
+
