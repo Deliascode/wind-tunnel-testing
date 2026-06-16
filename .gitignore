@@ -6,6 +6,8 @@ __pycache__/
 # Generated deliverables (regenerate with the script)
 Task1_Performance_TestMatrix_Group2.xlsx
 Task2_Wake_TestMatrix_Group2.xlsx
+~$Task1_Performance_TestMatrix_Group2.xlsx
+~$Task2_Wake_TestMatrix_Group2.xlsx
 
 # Third-party / course material — do NOT redistribute
 *.pdf

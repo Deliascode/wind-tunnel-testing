@@ -456,6 +456,63 @@ $[0.5, 30]\ \mathrm{m/s}$. If the target cannot be bracketed, the solver raises 
 > *Implemented by:* `reynolds_calibration.ReynoldsCalibrator`,
 > `aerodynamics.reynolds_number`.
 
+#### 7.5.1 Degrees of Freedom: Why Task 1 Hits $Re$ Exactly but Task 2 Cannot
+
+Matching $Re = 75\,000$ is what makes the model results transferable to the **full-scale,
+unscaled** rotor (flow similarity, §7.1): same geometry + same angle of attack + same Reynolds
+number $\Rightarrow$ same $c_l, c_d, c_m$. So the question of *which* operating points can be
+forced to $Re = 75\,000$ is central.
+
+**There are only two physical knobs:** the speed the rotor feels $U'_\infty$ and the rotor
+speed $\Omega$ (rpm). The tip-speed ratio is **not** a third knob — it is their ratio,
+
+$$
+\lambda = \frac{\Omega R}{U'_\infty}\,,
+$$
+
+so fixing any two of $\{U'_\infty,\ \Omega,\ \lambda\}$ fixes the third. The Reynolds number
+factorises into the controllable speed and a function of the *shape* of the velocity triangle
+(§7.6), which at fixed $\lambda$ and induction factors is a constant:
+
+$$
+Re = \frac{v_{\text{rel}}\,c}{\nu}, \qquad v_{\text{rel}} = U'_\infty\,g(\lambda, a, a')
+\;\;\Rightarrow\;\; \boxed{\,Re \propto U'_\infty \text{ at fixed } \lambda\,}.
+$$
+
+| Task | What is fixed | Free knob | $Re$ outcome |
+|------|---------------|-----------|--------------|
+| **1 (performance)** | requested tunnel speed (0.5 m/s grid) | **TSR** ($\Rightarrow$ rpm) | **solved exactly** to $75\,000$: a unique $\lambda$ makes $Re=75\,000$ |
+| **2 (wake)** | requested tunnel speed **and** optimum TSR | *(none)* | **output only** — $\Omega$ is slaved to $\lambda U'_\infty/R$ |
+
+In Task 1, `solve_for_target_reynolds_at_tunnel_speed` keeps the tunnel speed and root-solves
+$\lambda$ (hence rpm) so $Re = 75\,000$ — this is free, because Task 1’s deliverable is a
+*varying-TSR* curve anyway. In Task 2 the brief pins **both** the wind speed (5.4 m/s) **and**
+the operating point (optimum TSR, so the wake is the *optimum-point* wake). With both fixed,
+$\Omega = \lambda U'_\infty/R$ is determined and **no free variable remains** to steer $Re$;
+`solve_for_fixed_tunnel_speed` just reports whatever $Re$ results.
+
+**Why Task 2 leaves the $75\,000 \pm 2000$ corridor.** The rotor never feels the 5.4 m/s
+set on the tunnel — it feels the blockage-corrected free-air speed (§7.10), and the Glauert
+factor depends on the **yaw-dependent** thrust coefficient $C_T(\gamma)\!\sim\!\cos^2\gamma$:
+
+$$
+U'_\infty = U_{\text{tunnel}}\Big(1 + \tfrac{\alpha}{4}\tfrac{C_T(\gamma)}{1 - C_T(\gamma)}\Big),
+\qquad Re \propto U'_\infty .
+$$
+
+| $\gamma$ | $C_T$ | $U'_\infty$ [m/s] | $Re$ | in $75\,000\pm2000$? |
+|-----:|------:|------:|------:|:--:|
+| $0^\circ$ | high | 6.234 | 77 695 | ✗ (just above) |
+| $+30^\circ$ | $\downarrow\,\cos^2\!30^\circ$ | 5.752 | 71 684 | ✗ (just below) |
+| $-30^\circ$ | $\downarrow$ | 5.740 | 71 541 | ✗ (just below) |
+
+The ratios confirm the proportionality: $71\,684/77\,695 = 0.923 = 5.752/6.234$. To pull all
+three into the corridor one would have to **surrender one of the two fixed requirements** —
+either lower the tunnel speed (so $U'_\infty$ calibrates to $75\,000$, breaking the prescribed
+$5.4\ \mathrm{m/s}$) or detune the TSR off its optimum (so it is no longer the optimum-point
+wake). Both are mandated, so Task 2 **reports** $Re$ rather than enforcing it — which is exactly
+why `check_row` is called with `enforce_reynolds=True` for Task 1 and `False` for Task 2.
+
 ### 7.6 Velocity Triangle and Blade-Element Momentum Theory
 
 From 1-D annular stream-tube theory with wake swirl (Lecture 3), the local flow at a blade
