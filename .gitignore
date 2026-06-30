@@ -8,14 +8,10 @@ Task1_Performance_TestMatrix_Group2.xlsx
 Task2_Wake_TestMatrix_Group2.xlsx
 ~$Task1_Performance_TestMatrix_Group2.xlsx
 ~$Task2_Wake_TestMatrix_Group2.xlsx
-<<<<<<< Updated upstream
-=======
-Task1_Performance_TestMatrix_Group2_measurements.xlsx 
-~$Task1_Performance_TestMatrix_Group2_measurements.xlsx 
->>>>>>> Stashed changes
 
 # Third-party / course material — do NOT redistribute
 *.pdf
+*.mat
 LookUpTable_G1.mat
 windtunnel_specifications.jpeg
 _text_*.txt
