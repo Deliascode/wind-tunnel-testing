@@ -1,0 +1,17 @@
+﻿variable;source;formula
+Meas. Rotor azimuth [deg];Data.ModelsData.Model1.Azimuth;"Measured channel; 20000 -> 2000 by block averaging."
+Meas. Rotor speed [rpm];Data.ModelsData.Model1.RotorSpeed;"Measured channel; kept at 2000 samples."
+Omega [rad/s];Data.ModelsData.Model1.RotorSpeed;"omega = RotorSpeed * 2*pi/60. RotorSpeed is measured in rpm; omega is in rad/s. Uses the 2000-sample resampled RotorSpeed time series. Additional columns report min(omega), max(omega), and median(omega)."
+Meas. Generator torque [Nm];Data.ModelsData.Model1.PowerReference.Abs and RotorSpeed;Q_generator = PowerReference.Abs / omega, omega = RotorSpeed * 2*pi/60. Assumption: PowerReference.Abs is power in W.
+Meas. Aerodynamic torque [Nm];Data.ModelsData.Model1.Hub.Torque;Q_aero = Hub.Torque * 1e-3. Assumption: raw Hub.Torque is in mNm.
+Meas. Tower fore-aft moment [Nm];Data.ModelsData.Model1.Tower.FA;"Measured tower-base fore-aft bending moment; kept at 2000 samples."
+Meas. Tower side-side moment [Nm];Data.ModelsData.Model1.Tower.SS;"Measured tower-base side-side bending moment; kept at 2000 samples."
+Meas. Shaft bending moment [Nm];Data.ModelsData.Model1.Hub.Yawing and Hub.Nodding;M_shaft = sqrt((Hub.Yawing*1e-3)^2 + (Hub.Nodding*1e-3)^2). Assumption: raw yawing/nodding moments are in mNm.
+Meas. Demanded pitch B1 [deg];Data.ModelsData.Model1.Pitch.Blade1;"Measured channel; mapping follows user instruction."
+Meas. Actual pitch B1 [deg];Data.ModelsData.Model1.Pitch.Blade1Dem;"Measured channel; mapping follows user instruction."
+Meas. Demanded pitch B2 [deg];Data.ModelsData.Model1.Pitch.Blade2;"Measured channel; mapping follows user instruction."
+Meas. Actual pitch B2 [deg];Data.ModelsData.Model1.Pitch.Blade2Dem;"Measured channel; mapping follows user instruction."
+Meas. Demanded pitch B3 [deg];Data.ModelsData.Model1.Pitch.Blade3;"Measured channel; mapping follows user instruction."
+Meas. Actual pitch B3 [deg];Data.ModelsData.Model1.Pitch.Blade3Dem;"Measured channel; mapping follows user instruction."
+Meas. Demanded yaw [deg];Data.ModelsData.Model1.YawDem;"Measured demanded yaw channel; kept at 2000 samples."
+Meas. Actual yaw [deg];Data.ModelsData.Model1.Yaw;"Measured actual yaw channel; kept at 2000 samples."
